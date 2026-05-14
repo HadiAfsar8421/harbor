@@ -1,3 +1,4 @@
+#include <stddef.h>
 #define TABLE_SIZE 64
 #define KEYWORD_COUNT (sizeof(keyword_table) / sizeof(keyword_table[0]))
 
@@ -49,6 +50,19 @@ static const Keyword keyword_table[] = {
     {"void", TOKEN_VOID}
 };
 
+typedef struct
+{
+    const char *input;
+
+    size_t position;
+    int line;
+
+    Token *tokens;
+    size_t count;
+    size_t capacity;
+
+} Lexer;
+
 TokenType lookup_keyword(const char *str, int len)
 {
     for (int i = 0; i < KEYWORD_COUNT; i++)
@@ -63,60 +77,120 @@ TokenType lookup_keyword(const char *str, int len)
     return TOKEN_IDENTIFIER;
 }
 
-void lex_identifier(int* position, )
+static char peek(Lexer *lexer)
+{
+    return lexer->input[lexer->position];
+}
+
+static char peek_next(Lexer *lexer)
+{
+    if (lexer->input[lexer->position] == '\0')
+        return '\0';
+
+    return lexer->input[lexer->position + 1];
+}
+
+static char advance(Lexer *lexer)
+{
+    return lexer->input[lexer->position++];
+}
+
+static bool match(Lexer *lexer, char expected)
+{
+    if (peek(lexer) != expected)
+        return false;
+
+    lexer->position++;
+    return true;
+}
+
+static bool is_at_end(Lexer *lexer)
+{
+    return lexer->input[lexer->position] == '\0';
+}
+
+static bool add_token(Lexer *lexer, TokenType type, Value value, ValueKind kind)
+{
+    if(lexer->count >= lexer->capacity){
+        lexer->capacity *= 2;
+        Token* new_tokens = realloc(lexer->tokens, lexer->capacity * sizeof(Token));
+        if(!new_tokens){
+            fprintf(stderr, "Memory allocation failed :(\n");
+            free(lexer->tokens);
+            lexer->tokens = NULL;
+            return false;
+        }
+        lexer->tokens = new_tokens;
+    }
+    lexer->tokens[lexer->count++] = (Token){type, lexer->line, value, kind};
+    return true;
+}
+
+static bool add_simple_token(Lexer *lexer, TokenType type)
+{
+    return add_token(lexer, type, (Value){0}, VAL_NONE);
+}
+
+static bool lex_identifier(Lexer *lexer){
+    int start = lexer->position;
+    while(!is_at_end(lexer) &&
+        (isalnum((unsigned char)peek(lexer)) || 
+        peek(lexer) == '_'))
+    {
+        advance(lexer);
+    }
+    int length = lexer->position - start;
+    const char *str = &lexer->input[start];
+    TokenType type = lookup_keyword(str, length);
+    if(type == TOKEN_IDENTIFIER){
+        return add_token(
+            lexer, 
+            type, 
+            (Value){
+                .slice = (Slice){ str, length }
+            }, 
+            VAL_SLICE
+        );
+    }
+    else {
+        return add_simple_token(lexer, type);
+    }
+}
+
+static void handle_whitespace(Lexer *lexer){
+    if(peek(lexer) == '\n'){
+        lexer->line++;
+    }
+    if(isspace(peek(lexer))){
+        advance(lexer);
+    }
+}
+
+static bool lex_number(Lexer *lexer){
+    if(peek(lexer)=='0'){
+        if(peek_next(lexer) == 'x'){
+
+        }
+    }
+}
 
 Token* tokenize(const char* input)
 {
-    int capacity = 10;
-    Token* tokens = malloc(capacity * sizeof(Token));
-    if(!tokens){
+    Lexer lexer = {input, 0, 1, malloc(10 * sizeof(Token)), 0, 10};
+    if(!lexer.tokens){
         fprintf(stderr, "Memory allocation failed :(\n");
         return NULL;
     }
-
-    int count = 0;
-    int position = 0;
-    int line = 1;
-    char current_char;
     
-    while(input[position] != '\0'){
-        current_char = input[position];
-
-        if(count >= capacity){
-            capacity *= 2;
-            Token* new_tokens = realloc(tokens, capacity * sizeof(Token));
-            if(!new_tokens){
-                fprintf(stderr, "Memory allocation failed :(\n");
-                free(tokens);
-                return NULL;
-            }
-        }
-        
-        if(current_char == '\n'){
-            position++;
-            line++;
-            continue;
-        }
-        
-        if(isspace(current_char)){
-            position++;
-            continue;
-        }
-
-        if(isalpha(current_char) || current_char == '_'){
-            int start = position;
-            while(isalnum(input[position]) || input[position] == '_'){
-                position++;
-            }
-            int length = position - start;
-            const char* identifier = &input[start];
-            TokenType type = lookup_keyword(identifier, length);
-            tokens[count++] = (Token){type, line, {identifier, length}};
-        }
-
-        if(isdigit(input[position])){
-            
+    while(!is_at_end(&lexer)){
+        if(!lex_token(&lexer))
+        {
+            return NULL;
         }
     }
-
+    if(!add_simple_token(&lexer, TOKEN_EOF);)
+    {
+        return NULL;
+    }
+    return lexer.tokens;
 }

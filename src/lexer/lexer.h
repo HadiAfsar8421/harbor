@@ -1,11 +1,20 @@
 #ifndef LEXER_H
 #define LEXER_H
 
+#include<stddef.h>
+#include <stdint.h>
+
+typedef enum {
+    VAL_NONE,
+    VAL_SLICE,
+    VAL_INT,
+    VAL_FLOAT
+} ValueKind;
+
 typedef enum {
 
     // special
     TOKEN_EOF,
-    TOKEN_ERROR,
 
     // identifiers
     TOKEN_IDENTIFIER,
@@ -106,16 +115,28 @@ typedef enum {
 
 } TokenType; 
 
+struct {
+    const char *start;
+    size_t length;
+} Slice;
+
+typedef union {
+
+        SLice slice;
+
+        int64_t i64;
+        double f64;
+
+} Value;
+
 typedef struct
 {
     TokenType type;
     int line;
     
-    struct {
-        const char *start;
-        int length;
-    } text;
+    Value value;
 
+    ValueKind kind;
 } Token;
 
 Token* tokenize(const char* input);
